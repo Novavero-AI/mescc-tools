@@ -1060,7 +1060,11 @@ int _execute(FILE* script, char** argv)
 
 	int f = 0;
 
-#ifdef __uefi__
+/* Not every system has a fork.  UEFI has none, and Windows has a clone
+ * primitive whose child never runs, so both start the program and wait for it
+ * in one step instead.  spawn() is that step, and returns what the program
+ * exited with. */
+#if defined(__uefi__) || defined(__windows__)
 	array = list_to_array(token);
 	envp = list_to_array(env);
 	return spawn(program, array, envp);
