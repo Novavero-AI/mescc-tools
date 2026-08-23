@@ -114,12 +114,33 @@ char* find_executable(char* name)
 		return name;
 	}
 
+#ifdef __windows__
+	/* On Windows a drive letter says the same thing: C:/foo already names a
+	 * file, and searching for it inside each element of PATH would only ever
+	 * find nothing. */
+	if(':' == name[1])
+	{
+		return name;
+	}
+#endif
+
 	char* trial = calloc(MAX_STRING, sizeof(char));
 	char* MPATH = calloc(MAX_STRING, sizeof(char)); /* Modified PATH */
 	require(MPATH != NULL, "Memory initialization of MPATH in find_executable failed\n");
 	strcpy(MPATH, PATH);
 	FILE* t;
-	char* next = find_char(MPATH, ':');
+	int separator;
+
+	/* Windows cannot use a colon here: a path there begins with a drive
+	 * letter and a colon of its own, so splitting on one would cut every
+	 * element in two.  It separates the elements with a semicolon instead,
+	 * and that is what the PATH kaem is handed there actually contains. */
+#ifdef __windows__
+	separator = ';';
+#else
+	separator = ':';
+#endif
+	char* next = find_char(MPATH, separator);
 	int index;
 	int offset;
 	int mpath_length;
@@ -160,6 +181,23 @@ char* find_executable(char* name)
 		require(strlen(trial) < MAX_STRING, "COMMAND TOO LONG!\nABORTING HARD\n");
 		t = fopen(trial, "r");
 
+#ifdef __windows__
+		/* A program on Windows is called foo.exe, and a script that says foo
+		 * means that file.  The bare name is tried first, so a name that
+		 * already carries its own suffix -- or one of the unsuffixed programs
+		 * this bootstrap sometimes lays down -- still wins. */
+		if(NULL == t)
+		{
+			offset = strlen(trial);
+			require((offset + 5) < MAX_STRING, "COMMAND TOO LONG!\nABORTING HARD\n");
+			trial[offset] = '.';
+			trial[offset + 1] = 'e';
+			trial[offset + 2] = 'x';
+			trial[offset + 3] = 'e';
+			t = fopen(trial, "r");
+		}
+#endif
+
 		if(NULL != t)
 		{
 			fclose(t);
@@ -167,7 +205,7 @@ char* find_executable(char* name)
 		}
 
 		MPATH = next + 1;
-		next = find_char(MPATH, ':');
+		next = find_char(MPATH, separator);
 	}
 
 	return NULL;
