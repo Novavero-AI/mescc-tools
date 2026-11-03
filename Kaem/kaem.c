@@ -1108,13 +1108,24 @@ int _execute(FILE* script, char** argv)
 
 	int f = 0;
 
-/* Not every system has a fork.  UEFI has none, and Windows has a clone
- * primitive whose child never runs, so both start the program and wait for it
- * in one step instead.  spawn() is that step, and returns what the program
+/* UEFI has no fork.  M2libc's Windows target has one, but Windows has no call
+ * that replaces a running program with another: execve there starts the
+ * program as a new process, waits for it and exits with its status, so fork
+ * and then execve would start two processes for every command where spawn()
+ * starts one.  spawn() starts the program, waits for it, and returns what it
  * exited with. */
 #if defined(__uefi__) || defined(__windows__)
 	array = list_to_array(token);
 	envp = list_to_array(env);
+#ifdef __windows__
+	/* exec ends the script, as it does where execve replaces kaem: execve
+	 * here returns only if the program could not be started or waited for. */
+	if(exec)
+	{
+		execve(program, array, envp);
+		_exit(EXIT_FAILURE);
+	}
+#endif
 	return spawn(program, array, envp);
 #else
 	if(!exec)
