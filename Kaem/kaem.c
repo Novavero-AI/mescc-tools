@@ -1289,6 +1289,28 @@ void run_script(FILE* script, char** argv)
 	}
 }
 
+#ifdef __windows__
+/* Windows matches environment names without regard to case, and the search
+ * path it hands a program is called Path.  kaem and the scripts it runs call
+ * it PATH, so that one name is spelled PATH as it comes in. */
+void spell_path_as_posix(char* var)
+{
+	char* posix = "PATH";
+	int i = 0;
+	int c;
+
+	while(0 != posix[i])
+	{
+		c = var[i];
+		if(('a' <= c) && ('z' >= c)) c = c - ('a' - 'A');
+		if(posix[i] != c) return;
+		i = i + 1;
+	}
+
+	if(0 == var[i]) strcpy(var, posix);
+}
+#endif
+
 /* Function to populate env */
 void populate_env(char** envp)
 {
@@ -1340,6 +1362,10 @@ void populate_env(char** envp)
 			n->var[j] = envp_line[j];
 			j = j + 1;
 		}
+
+#ifdef __windows__
+		spell_path_as_posix(n->var);
+#endif
 
 		/* If we get strange input, we need to ignore it */
 		if(n->var == NULL)
